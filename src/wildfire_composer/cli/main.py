@@ -1,6 +1,7 @@
 """Command-line interface for the wildfire composer."""
 
 import os
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -38,10 +39,17 @@ def refresh(
 def list_cmd(
     db_path: str = typer.Option(DEFAULT_DB, "--db", help="DuckDB file path"),
     limit: int = typer.Option(10, "--limit", help="Maximum number of returned events"),
+    only_closed: Annotated[
+        bool,
+        typer.Option(
+            "--closed/--all", help="Filter only closed or also open activations"
+        ),
+    ] = True,
 ):
+    print(only_closed)
 
     con = connect(db_path)
-    rows = list_wildfires(con, limit)
+    rows = list_wildfires(con, limit, only_closed)
     con.close()
     if not rows:
         raise typer.Exit()

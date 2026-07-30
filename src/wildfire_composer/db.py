@@ -28,8 +28,7 @@ COUNT_ACTIVATIONS = """SELECT count(*) FROM activations"""
 LIST_WILDFIRES = """
 SELECT code, name, countries, activation_time, closed, lon, lat
 FROM activations
-WHERE category ILIKE '%wildfire%' OR category_slug ILIKE '%fire%'
-ORDER BY activation_time DESC
+WHERE (category ILIKE '%wildfire%' OR category_slug ILIKE '%fire%')
 """
 
 
@@ -57,7 +56,9 @@ def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
 
 
 def list_wildfires(
-    con: duckdb.DuckDBPyConnection, limit: int | None = None
+    con: duckdb.DuckDBPyConnection,
+    limit: int | None = None,
+    only_closed: bool | None = None,
 ) -> list[tuple]:
     """Returns a possibly limited list of wildfires from the database.
 
@@ -67,7 +68,8 @@ def list_wildfires(
         A duckDB connection to the CEMS database.
     limit : int | None
         Maximum number of entries to return.
-
+    only_closed: bool | None
+        Consider only closed reports in the returned list.
 
     Returns
     -------
@@ -75,8 +77,11 @@ def list_wildfires(
 
     """
     query = LIST_WILDFIRES
+    if only_closed:
+        query += "AND closed\n"
+    query += "ORDER BY activation_time DESC\n"
     if limit:
-        query += f"LIMIT {int(limit)}"
+        query += f"LIMIT {int(limit)}\n"
     return con.execute(query).fetchall()
 
 
