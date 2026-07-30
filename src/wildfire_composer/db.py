@@ -26,7 +26,7 @@ COUNT_ACTIVATIONS = """SELECT count(*) FROM activations"""
 
 
 LIST_WILDFIRES = """
-SELECT code, name, countries, category, activation_time, lon, lat
+SELECT code, name, countries, activation_time, closed, lon, lat
 FROM activations
 WHERE category ILIKE '%wildfire%' OR category_slug ILIKE '%fire%'
 ORDER BY activation_time DESC
