@@ -1,0 +1,47 @@
+[project]
+name = "wildfire-composer"
+version = "0.1.0"
+description = "A wildfire images composer based on CEMS report data and Sentinel-2 data."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+  "botocore>=1.43.58",
+  "dask>=2026.7.1",
+  "duckdb>=1.5.5",
+  "httpx>=0.28.1",
+  "matplotlib>=3.11.1",
+  "odc-stac>=0.5.2",
+  "pre-commit>=4.6.1",
+  "pystac-client>=0.9.0",
+  "typer>=0.27.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+wildfire-composer = "wildfire_composer.cli.main:app"
+
+[tool.ruff.lint]
+select = ["D", "I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.jupytext]
+formats = "ipynb,py:percent"
+
+[dependency-groups]
+dev = [
+  "jupyterlab>=4.6.2",
+  "jupytext>=1.19.5",
+  "mdformat>=1.0.0",
+  "mdformat-myst>=0.3.0",
+  "pre-commit>=4.6.1",
+  "ruff>=0.16.0",
+]
