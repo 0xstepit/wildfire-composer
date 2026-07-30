@@ -1,0 +1,60 @@
+from pathlib import Path
+
+import duckdb
+
+# Query to create or replace the activations table from
+# the CEMS Mapping data API response to the list of activation:
+# https://mapping.emergency.copernicus.eu/activations/api/activations/
+LOAD_SQL = """
+CREATE OR REPLACE TABLE activations AS
+SELECT
+    code,
+    name,
+    countries,
+    category,
+    activationTime::TIMESTAMP AS time,
+    centroid AS centroid_wkt,
+    ST_X(ST_GeomFromText(centroid)) AS lon,
+    ST_Y(ST_GeomFromText(centroid)) AS lat,
+    closed,
+FROM read_json_auto('{path}', format='array')
+"""
+
+# Counts the number of activations in the database.
+COUNT_ACTIVATIONS = """SELECT count(*) FROM activations"""
+
+
+def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
+    """Returns a connect to a DuckDB instance at the specified path. The parent folders of the
+    file are created if they don't exist.
+
+    Parameters
+    ----------
+    db_filepath : str
+        The filepath of the database file.
+
+    Returns
+    -------
+    duckdb.DuckDBPyConnection
+
+    """
+    _create_folder_if_missing(db_filepath)
+
+    con = duckdb.connect(db_filepath)
+    con.install_extension("spatial")
+    con.load_extension("spatial")
+
+    return con
+
+
+def _create_folder_if_missing(filepath: str):
+    """Create the file parent folders if they don't exist.
+
+    Parameters
+    ----------
+    filepath : str
+        The filepath of a local file.
+
+    """
+    db_dir = Path(filepath).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
