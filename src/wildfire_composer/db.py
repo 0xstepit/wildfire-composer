@@ -10,9 +10,10 @@ CREATE OR REPLACE TABLE activations AS
 SELECT
     code,
     name,
-    countries,
-    category,
-    activationTime::TIMESTAMP AS time,
+    concat_ws(', ', list_transform(countries, lambda c : c.short_name)) AS countries,
+    category.name AS category,
+    category.slug AS category_slug,
+    strftime(activationTime::TIMESTAMP, '%Y-%m-%d') AS activation_time,
     centroid AS centroid_wkt,
     ST_X(ST_GeomFromText(centroid)) AS lon,
     ST_Y(ST_GeomFromText(centroid)) AS lat,
@@ -22,6 +23,14 @@ FROM read_json_auto('{path}', format='array')
 
 # Counts the number of activations in the database.
 COUNT_ACTIVATIONS = """SELECT count(*) FROM activations"""
+
+
+LIST_WILDFIRES = """
+SELECT code, name, countries, category, activation_time, lon, lat
+FROM activations
+WHERE category ILIKE '%wildfire%' OR category_slug ILIKE '%fire%'
+ORDER BY activation_time DESC
+"""
 
 
 def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
@@ -45,6 +54,30 @@ def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
     con.load_extension("spatial")
 
     return con
+
+
+def list_wildfires(
+    con: duckdb.DuckDBPyConnection, limit: int | None = None
+) -> list[tuple]:
+    """Returns a possibly limited list of wildfires from the database.
+
+    Parameters
+    ----------
+    con : duckdb.DuckDBPyConnection
+        A duckDB connection to the CEMS database.
+    limit : int | None
+        Maximum number of entries to return.
+
+
+    Returns
+    -------
+    list[tuple]
+
+    """
+    query = LIST_WILDFIRES
+    if limit:
+        query += f"LIMIT {int(limit)}"
+    return con.execute(query).fetchall()
 
 
 def _create_folder_if_missing(filepath: str):
