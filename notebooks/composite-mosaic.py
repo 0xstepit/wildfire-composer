@@ -22,8 +22,10 @@
 # %autoreload 2
 
 # %%
-import xarray as xr
 from pathlib import Path
+
+import xarray as xr
+
 from wildfire_composer.viz import mosaic
 
 # %%
@@ -52,6 +54,8 @@ fig = mosaic(rasters, titles, subtitles)
 
 # %%
 imgs_path = Path("../data/images")
-fig.savefig(imgs_path / f"wildfire_mosaic.png", dpi=200, bbox_inches="tight", pad_inches=0.1)
+fig.savefig(
+    imgs_path / f"wildfire_mosaic.png", dpi=200, bbox_inches="tight", pad_inches=0.1
+)
 
 # %%
