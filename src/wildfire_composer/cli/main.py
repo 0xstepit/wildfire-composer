@@ -1,17 +1,25 @@
 """Command-line interface for the wildfire composer."""
 
 import os
+from csv import Error
+from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from wildfire_composer import fetch
+from wildfire_composer.cems import Product, ProductStatusCode, ProductType
+from wildfire_composer.cli.utils import wildfire_list_to_table
 from wildfire_composer.config import Config
 from wildfire_composer.db import connect, list_wildfires
+from wildfire_composer.raster import Aoi, Range, fetch_and_store_data
 
+# Create an IO file
 DEFAULT_DB = os.environ.get("CEMS_DB", "data/cems.duckdb")
+DEFAULT_IMG_OUT = os.environ.get("IMG_OUT", "data/images")
+DEFAULT_RASTER_OUT = os.environ.get("RASTER_OUT", "data/rasters")
 DEFAULT_CONFIG = os.environ.get("CONFIG", "config/config.toml")
 
 
@@ -39,42 +47,106 @@ def refresh(
 def list_cmd(
     db_path: str = typer.Option(DEFAULT_DB, "--db", help="DuckDB file path"),
     limit: int = typer.Option(10, "--limit", help="Maximum number of returned events"),
-    only_closed: Annotated[
+    include_active: Annotated[
         bool,
         typer.Option(
-            "--closed/--all", help="Filter only closed or also open activations"
+            "--include-active/--not-include-acrive",
+            help="Filter only closed or also open activations",
         ),
-    ] = True,
+    ] = False,
 ):
-    print(only_closed)
+    print(include_active)
 
     con = connect(db_path)
-    rows = list_wildfires(con, limit, only_closed)
+    rows = list_wildfires(con, limit, include_active)
     con.close()
     if not rows:
         raise typer.Exit()
-    console.print(_wildfire_list_to_table(rows))
+    console.print(wildfire_list_to_table(rows))
 
 
-def _wildfire_list_to_table(rows) -> Table:
-    table = Table(title="CEMS wildfire activations")
-    table.add_column("Code", style="bold cyan", no_wrap=True)
-    table.add_column("Name")
-    table.add_column("Region")
-    table.add_column("Acrivated", no_wrap=True)
-    table.add_column("Status", no_wrap=True)
+@app.command()
+def render(
+    codes: list[str] = typer.Argument(
+        ..., help="List of one or more CEMS activation codes to render, e.g. [EMSR333]"
+    ),
+    cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
+    kind: str = typer.Option("all", "--kind", help="rgb | false-color | dnbr | all"),
+    img_dir: str = typer.Option(
+        DEFAULT_IMG_OUT, "--img-out", help="Output image directoriy"
+    ),
+    raster_dir: str = typer.Option(
+        DEFAULT_RASTER_OUT, "--raster-out", help="Output raster directoriy"
+    ),
+):
+    """
+    Fetch data associated with the provided CEMS reports, create a pre and post wildfire
+    rasters, and generate the raster images.
+    """
+    cfg = Config.load(cfg_path)
 
-    for row in rows:
-        (code, name, countries, activation_time, closed, _, _) = row
-        table.add_row(
-            code,
-            name,
-            countries,
-            activation_time,
-            "[blue] closed" if closed else "[yellow] open",
-        )
+    failed: dict = {}
+    # Iterate over all the CEMS code to generate rasters and images.
 
-    return table
+    raster_out = Path(raster_dir)
+    raster_out.mkdir(parents=True, exist_ok=True)
+
+    for code in codes:
+        try:
+            with console.status(f"Working on the raster for activation {code}"):
+                console.print("[white]Fetching extended CEMS report")
+                act = fetch.fetch_extended_activaton(cfg.cems.url_extended, code)
+
+                name = act["name"]
+                countries = ", ".join([country["name"] for country in act["countries"]])
+                start_date = act["eventTime"]
+
+                product = get_activation_aoi_product(act)
+                evaluate_product_validity(product)
+
+                aoi = Aoi(name=product.name, countries=countries, extent=product.extent)
+
+                console.print("[white]Composing Sentinel-2 data")
+                raster_filepath = raster_out / f"raster_{code}"
+                fetch_and_store_data(
+                    cfg_stac=cfg.stac,
+                    out_file=raster_filepath,
+                    aoi=aoi,
+                    start_date=datetime.fromisoformat(start_date),
+                    end_date=datetime.fromisoformat(product.delivery_time),
+                )
+        except Exception as e:
+            failed[code] = e
+
+    if failed:
+        for code, err in failed.items():
+            console.print(f"[red]{code}: {err}")
+        raise typer.Exit(1)
+
+
+def evaluate_product_validity(product: Product):
+    if product.status != ProductStatusCode.F.name:
+        raise Error(f"Product type is not {ProductStatusCode.F.value}")
+
+
+# NOTE: we always assume that only the first AOI is used
+def get_activation_aoi_product(act: dict) -> Product:
+    aoi = act["aois"][0]
+    aoi_product: dict = {}
+    for product in aoi["products"]:
+        if product["type"] == ProductType.GRA.name:
+            aoi_product = product
+            break
+    if not aoi_product:
+        raise Error(f"{ProductType.GRA.value} not found")
+
+    return Product(
+        type=aoi_product["type"],
+        status=aoi_product["version"]["statusCode"],
+        name=aoi_product["aoiName"],
+        extent=aoi_product["extent"],
+        delivery_time=aoi_product["version"]["deliveryTime"],
+    )
 
 
 if __name__ == "__main__":

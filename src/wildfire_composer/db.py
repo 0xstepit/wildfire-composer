@@ -3,16 +3,14 @@ from pathlib import Path
 import duckdb
 
 # Query to create or replace the activations table from
-# the CEMS Mapping data API response to the list of activation:
-# https://mapping.emergency.copernicus.eu/activations/api/activations/
+# the CEMS Rapid Mapping data API response to the list of activation.
 LOAD_SQL = """
 CREATE OR REPLACE TABLE activations AS
 SELECT
     code,
     name,
-    concat_ws(', ', list_transform(countries, lambda c : c.short_name)) AS countries,
-    category.name AS category,
-    category.slug AS category_slug,
+    concat_ws(', ', countries) AS countries,
+    category AS category,
     strftime(activationTime::TIMESTAMP, '%Y-%m-%d') AS activation_time,
     centroid AS centroid_wkt,
     ST_X(ST_GeomFromText(centroid)) AS lon,
@@ -28,7 +26,7 @@ COUNT_ACTIVATIONS = """SELECT count(*) FROM activations"""
 LIST_WILDFIRES = """
 SELECT code, name, countries, activation_time, closed, lon, lat
 FROM activations
-WHERE (category ILIKE '%wildfire%' OR category_slug ILIKE '%fire%')
+WHERE (category ILIKE '%wildfire%')
 """
 
 
@@ -58,7 +56,7 @@ def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
 def list_wildfires(
     con: duckdb.DuckDBPyConnection,
     limit: int | None = None,
-    only_closed: bool | None = None,
+    include_active: bool | None = None,
 ) -> list[tuple]:
     """Returns a possibly limited list of wildfires from the database.
 
@@ -77,7 +75,7 @@ def list_wildfires(
 
     """
     query = LIST_WILDFIRES
-    if only_closed:
+    if not include_active:
         query += "AND closed\n"
     query += "ORDER BY activation_time DESC\n"
     if limit:

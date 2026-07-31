@@ -25,6 +25,16 @@ def fetch_all(url: str, page_size: int = 200, timeout: float = 60.0) -> list[dic
     return records
 
 
+def fetch_extended_activaton(url: str, code: str, timeout: float = 60.0) -> dict:
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        resp = client.get(url, params={"code": code})
+        resp.raise_for_status()
+        payload = resp.json()
+        record = payload.get("results", [])
+    # TODO: add check if not empty.
+    return record[0]
+
+
 def refresh(url: str, db_path) -> int:
     """Create or refresh an activations table in the database."""
     records = fetch_all(url)

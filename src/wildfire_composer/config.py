@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class Cems:
     url: str
+    url_extended: str
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,7 @@ class AOI:
 
 
 @dataclass(frozen=True)
-class Stac:
+class StacConfig:
     url: str
     collection: str
     chunk_size: int
@@ -44,7 +45,7 @@ class Stac:
 
 @dataclass
 class Config:
-    stac: Stac
+    stac: StacConfig
     cems: Cems
     aois: dict[str, AOI] = field(default_factory=dict)
 
@@ -66,7 +67,7 @@ class Config:
             for name, entry in raw["aois"].items()
         }
 
-        stac = Stac(**raw.pop("stac"))
+        stac = StacConfig(**raw.pop("stac"))
         cems = Cems(**raw.pop("cems"))
 
         return cls(

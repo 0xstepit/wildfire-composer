@@ -13,7 +13,9 @@ dependencies = [
   "odc-stac>=0.5.2",
   "pre-commit>=4.6.1",
   "pystac-client>=0.9.0",
+  "shapely>=2.1.2",
   "typer>=0.27.0",
+  "zarr>=3.2.1",
 ]
 
 [build-system]
