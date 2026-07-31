@@ -15,7 +15,14 @@
 # %% [markdown]
 # # Composite Mosaic
 #
-# This notebook is a walkthrough on how to manually create multi-region composite images using the functions provided in the project.
+# This notebook is a walkthrough on how to manually create multi-region composite images using the functions provided in the project. To execute the notebook, you first have to download the associated data. To do so, first install the package following the instructions in the `README.md` and then run:
+#
+# ```sh
+# uv run wildfire-composer refresh
+# uv run wildfire-composer render EMSR873 EMSR875 EMSR890 EMSR892
+# ```
+#
+# Now you are ready to go!
 
 # %%
 # %load_ext autoreload
