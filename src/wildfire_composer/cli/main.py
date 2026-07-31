@@ -94,27 +94,24 @@ def render(
     for code in codes:
         try:
             with console.status(f"Working on the raster for activation {code}"):
-                console.print("[white]Fetching extended CEMS report")
-                act = fetch.fetch_extended_activaton(cfg.cems.url_extended, code)
-
-                name = act["name"]
-                countries = ", ".join([country["name"] for country in act["countries"]])
-                start_date = act["eventTime"]
-
-                product = get_activation_aoi_product(act)
-                evaluate_product_validity(product)
-
-                aoi = Aoi(name=product.name, countries=countries, extent=product.extent)
-
-                console.print("[white]Composing Sentinel-2 data")
                 raster_filepath = raster_out / f"raster_{code}"
-                fetch_and_store_data(
-                    cfg_stac=cfg.stac,
-                    out_file=raster_filepath,
-                    aoi=aoi,
-                    start_date=datetime.fromisoformat(start_date),
-                    end_date=datetime.fromisoformat(product.delivery_time),
-                )
+                if not raster_filepath.with_suffix(".zarr").exists():
+                    console.print("[white]Fetching extended CEMS report")
+                    (aoi, start_date, end_date) = get_activation_info(cfg, code)
+
+                    console.print("[white]Composing Sentinel-2 data")
+                    fetch_and_store_data(
+                        cfg_stac=cfg.stac,
+                        out_file=raster_filepath,
+                        aoi=aoi,
+                        start_date=datetime.fromisoformat(start_date),
+                        end_date=datetime.fromisoformat(end_date),
+                    )
+                else:
+                    console.print(
+                        f"[green]Raster data for activation {code} already exists at {raster_filepath}"
+                    )
+
         except Exception as e:
             failed[code] = e
 
@@ -124,6 +121,20 @@ def render(
         raise typer.Exit(1)
 
 
+def get_activation_info(cfg, code):
+    act = fetch.fetch_extended_activaton(cfg.cems.url_extended, code)
+
+    name = act["name"]
+    countries = ", ".join([country["name"] for country in act["countries"]])
+    start_date = act["eventTime"]
+
+    product = get_activation_aoi_product(act)
+    evaluate_product_validity(product)
+
+    aoi = Aoi(name=product.name, countries=countries, extent=product.extent)
+    return aoi, start_date, product.delivery_time
+
+
 def evaluate_product_validity(product: Product):
     if product.status != ProductStatusCode.F.name:
         raise Error(f"Product type is not {ProductStatusCode.F.value}")
@@ -131,6 +142,11 @@ def evaluate_product_validity(product: Product):
 
 # NOTE: we always assume that only the first AOI is used
 def get_activation_aoi_product(act: dict) -> Product:
+    if len(act["aois"]) != 1:
+        raise Error(
+            "Sorry but the tool does not support activations with more than 1 AOI"
+        )
+
     aoi = act["aois"][0]
     aoi_product: dict = {}
     for product in aoi["products"]:

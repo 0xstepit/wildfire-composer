@@ -1,3 +1,4 @@
+from csv import Error
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -63,26 +64,27 @@ def fetch_and_store_data(
 
     bbox = from_wkt(aoi.extent).bounds
 
-    # TODO: remove, just to get quick results
-    edge = 500 / 1000 * km2deg / 2
-    lat, lon = 80, 1
-    bbox = (lon - edge, lat - edge, lon + edge, lat + edge)
+    _start_date = start_date - timedelta(
+        days=1
+    )  # 1 day before start date just to be sure
 
-    _start_date = start_date - timedelta(days=1)  # 1 day before start date
-    # TODO: this is 7 days for the end of the fire
     delta = timedelta(days=15)
 
     items_pre = catalog_search(cfg_stac, catalog, bbox, 20, _start_date, delta, True)
     items_post = catalog_search(cfg_stac, catalog, bbox, 20, end_date, delta, False)
 
-    assert len(items_pre) != 0, "No pre wildfire items"
-    assert len(items_post) != 0, "No post wildfire items"
+    if len(items_pre) == 0:
+        raise Error("No PRE fire scenes found")
+
+    if len(items_post) == 0:
+        raise Error("No POST fire scenes found")
 
     ds_pre = create_composite(items_pre, cfg_stac, bbox).compute()
     ds_post = create_composite(items_post, cfg_stac, bbox).compute()
 
     ds = xr.concat([ds_pre, ds_post], dim="time")
     ds = ds.assign_coords({"time": ["pre", "post"]})
+
     ds.to_zarr(f"{out_file}.zarr", mode="w")
 
 
