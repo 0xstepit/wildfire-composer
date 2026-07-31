@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 
 from wildfire_composer import fetch
@@ -16,6 +17,8 @@ from wildfire_composer.config import Config
 from wildfire_composer.db import connect, list_wildfires
 from wildfire_composer.raster import Aoi, fetch_and_store_data, get_rasters
 from wildfire_composer.viz import mosaic
+
+load_dotenv()
 
 # Create an IO file
 DEFAULT_DB = os.environ.get("CEMS_DB", "")
