@@ -1,4 +1,8 @@
+from csv import Error
+
 from rich.table import Table
+
+from wildfire_composer.raster import CompositeKind
 
 
 def wildfire_list_to_table(rows) -> Table:
@@ -20,3 +24,16 @@ def wildfire_list_to_table(rows) -> Table:
         )
 
     return table
+
+
+def get_kind_by_str(string) -> CompositeKind:
+    if string == "false-color":
+        return CompositeKind.FALSE
+    elif string == "rgb":
+        return CompositeKind.RGB
+    # elif string == "dnbr":
+    #     return CompositeKind.DNBR
+    # if string == "all":
+    #     return CompositeKind.ALL
+    else:
+        raise Error(f"Image kind {string} is not known")

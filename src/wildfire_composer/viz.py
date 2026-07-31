@@ -1,5 +1,6 @@
 """Utility submodule for the visualization of raster images."""
 
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -39,8 +40,7 @@ def mosaic(
         figsize = (panel * ncols, panel * nrows)
 
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, facecolor=facecolor)
-
-    axes = axes.flatten()
+    axes = np.atleast_1d(axes).ravel()
 
     for ax, raster, country, region in zip(axes, rasters, countries, regions):
         raster.plot.imshow(ax=ax, robust=True)
@@ -50,10 +50,11 @@ def mosaic(
         ax.axis("off")
 
         # Add centered text in the image. Yes, bottom place the text on top and top on the bottom...
-        add_text(ax, country.upper(), 32, "bottom")
-        add_text(ax, region.title(), 20, "top")
+        add_text(ax, country, 24, "bottom")
+        add_text(ax, region, 12, "top")
 
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=gap, hspace=gap)
+
     return fig
 
 
@@ -61,7 +62,7 @@ def add_text(ax, text: str, size: int, vertical_position: str):
     ax.text(
         0.5,
         0.5,
-        " ".join(text),
+        text,
         transform=ax.transAxes,
         ha="center",
         va=vertical_position,
@@ -69,5 +70,5 @@ def add_text(ax, text: str, size: int, vertical_position: str):
         fontsize=size,
         family="monospace",
         fontweight="bold",
-        # path_effects=[pe.withStroke(linewidth=3.5, foreground="black")],
+        path_effects=[pe.withStroke(linewidth=1.5, foreground="black")],
     )

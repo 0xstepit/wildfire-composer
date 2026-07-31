@@ -1,6 +1,7 @@
 from csv import Error
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 
 import pystac_client
@@ -9,9 +10,7 @@ from odc.stac import configure_s3_access
 from shapely import from_wkt
 
 from wildfire_composer.config import StacConfig
-from wildfire_composer.stac import catalog_search, load_stac_ds
-
-km2deg = 1 / 111
+from wildfire_composer.stac import catalog_search, load_from_stac
 
 
 @dataclass(frozen=True)
@@ -21,14 +20,16 @@ class Aoi:
     extent: str
 
 
-@dataclass()
-class Range:
-    start: date
-    end: date
+class CompositeKind(Enum):
+    ALL = "ALL"
+    FALSE = "FALSE"
+    RGB = "RGB"
+    DNBR = "DNBR"
 
-    @property
-    def as_str(self):
-        return f"{self.start.isoformat()}/{self.end.isoformat()}"
+
+# False bands could be provided as input
+FALSE_BANDS = ["swir16", "nir", "red"]
+RGB_BANDS = ["red", "green", "blue"]
 
 
 def mask_scl_noise(ds, bands):
@@ -39,19 +40,36 @@ def mask_scl_noise(ds, bands):
     return ds
 
 
+# TODO: this should get the values from the metadata.
 def rescale_reflectance(ds):
     return ds * 0.0001 - 0.1
 
 
-def create_composite(items, cfg_stac, bounding_box):
-    ds = load_stac_ds(cfg_stac, items, bounding_box)
-    ds = mask_scl_noise(ds, cfg_stac.bands)
-    ds = rescale_reflectance(ds)
-    return ds.mean(dim="time").to_array("band")
+def create_composite(cfg_stac, items, bounding_box):
+    da = load_from_stac(cfg_stac, items, bounding_box)
+    da = mask_scl_noise(da, cfg_stac.bands)
+    da = rescale_reflectance(da)
+    return da.mean(dim="time").to_array("band")
 
 
-# For the end day we can just qeury all the scenes after the start for 1 month, with a nice filter for cloud
-# if the fire is still active we will not get the scenes.
+def get_rasters(data_filepath: Path, kind: CompositeKind):
+    da = xr.open_dataarray(data_filepath.with_suffix(".zarr"), engine="zarr")
+    return get_raster_by_kind(da, kind)
+
+
+def get_raster_by_kind(da, kind: CompositeKind):
+    if kind is CompositeKind.FALSE:
+        da_pre = da.sel(band=FALSE_BANDS, time="pre")
+        da_post = da.sel(band=FALSE_BANDS, time="post")
+    elif kind == CompositeKind.RGB:
+        da_pre = da.sel(band=RGB_BANDS, time="pre")
+        da_post = da.sel(band=RGB_BANDS, time="post")
+    else:
+        raise Error(f"Composite kind {kind.value} is not supported yet")
+
+    return (da_pre, da_post)
+
+
 def fetch_and_store_data(
     cfg_stac: StacConfig,
     out_file: Path,
@@ -68,10 +86,15 @@ def fetch_and_store_data(
         days=1
     )  # 1 day before start date just to be sure
 
-    delta = timedelta(days=15)
+    # TODO: move cloud and delta to config
+    max_cloud_cover = 20
 
-    items_pre = catalog_search(cfg_stac, catalog, bbox, 20, _start_date, delta, True)
-    items_post = catalog_search(cfg_stac, catalog, bbox, 20, end_date, delta, False)
+    items_pre = catalog_search(
+        cfg_stac, catalog, bbox, max_cloud_cover, _start_date, timedelta(days=15), True
+    )
+    items_post = catalog_search(
+        cfg_stac, catalog, bbox, max_cloud_cover, end_date, timedelta(days=30), False
+    )
 
     if len(items_pre) == 0:
         raise Error("No PRE fire scenes found")
@@ -79,51 +102,11 @@ def fetch_and_store_data(
     if len(items_post) == 0:
         raise Error("No POST fire scenes found")
 
-    ds_pre = create_composite(items_pre, cfg_stac, bbox).compute()
-    ds_post = create_composite(items_post, cfg_stac, bbox).compute()
+    da_pre = create_composite(cfg_stac, items_pre, bbox).compute()
+    da_post = create_composite(cfg_stac, items_post, bbox).compute()
 
-    ds = xr.concat([ds_pre, ds_post], dim="time")
-    ds = ds.assign_coords({"time": ["pre", "post"]})
+    # Store the pre and post composite along a time dimension.
+    da = xr.concat([da_pre, da_post], dim="time")
+    da = da.assign_coords({"time": ["pre", "post"]})
 
-    ds.to_zarr(f"{out_file}.zarr", mode="w")
-
-
-def get_data(cfg_aoi, cfg_stac, catalog):
-    edge = cfg_aoi.edge / 1000 * km2deg / 2
-    lat, lon = cfg_aoi.lat, cfg_aoi.lon
-    bounding_box = (lon - edge, lat - edge, lon + edge, lat + edge)
-
-    start_date = datetime.strptime(cfg_aoi.start, "%Y-%m-%d") - timedelta(
-        days=1
-    )  # 1 day before start date
-    end_date = datetime.strptime(cfg_aoi.end, "%Y-%m-%d") + timedelta(
-        days=1
-    )  # 1 day after end date
-    delta = timedelta(cfg_aoi.time_buffer_days)
-
-    items_pre = catalog_search(
-        cfg_stac,
-        catalog,
-        bounding_box,
-        cfg_aoi.max_cloud_coverage,
-        start_date,
-        delta,
-        True,
-    )
-    items_post = catalog_search(
-        cfg_stac,
-        catalog,
-        bounding_box,
-        cfg_aoi.max_cloud_coverage,
-        end_date,
-        delta,
-        False,
-    )
-
-    assert len(items_pre) != 0, "No pre wildfire items"
-    assert len(items_post) != 0, "No post wildfire items"
-
-    ds_pre = create_composite(items_pre, cfg_stac, bounding_box)
-    ds_post = create_composite(items_post, cfg_stac, bounding_box)
-
-    return (ds_pre, ds_post)
+    da.to_zarr(f"{out_file}.zarr", mode="w")

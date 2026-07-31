@@ -11,10 +11,11 @@ from rich.console import Console
 
 from wildfire_composer import fetch
 from wildfire_composer.cems import Product, ProductStatusCode, ProductType
-from wildfire_composer.cli.utils import wildfire_list_to_table
+from wildfire_composer.cli.utils import get_kind_by_str, wildfire_list_to_table
 from wildfire_composer.config import Config
 from wildfire_composer.db import connect, list_wildfires
-from wildfire_composer.raster import Aoi, Range, fetch_and_store_data
+from wildfire_composer.raster import Aoi, fetch_and_store_data, get_rasters
+from wildfire_composer.viz import mosaic
 
 # Create an IO file
 DEFAULT_DB = os.environ.get("CEMS_DB", "data/cems.duckdb")
@@ -71,13 +72,22 @@ def render(
         ..., help="List of one or more CEMS activation codes to render, e.g. [EMSR333]"
     ),
     cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
-    kind: str = typer.Option("all", "--kind", help="rgb | false-color | dnbr | all"),
+    kind: str = typer.Option(
+        "false-color", "--kind", help="rgb | false-color | dnbr | all"
+    ),
     img_dir: str = typer.Option(
         DEFAULT_IMG_OUT, "--img-out", help="Output image directoriy"
     ),
     raster_dir: str = typer.Option(
         DEFAULT_RASTER_OUT, "--raster-out", help="Output raster directoriy"
     ),
+    regenerate_img: Annotated[
+        bool,
+        typer.Option(
+            "--regenerate-img/--not-regenerate-img",
+            help="Whether or not the images must be regenerated",
+        ),
+    ] = False,
 ):
     """
     Fetch data associated with the provided CEMS reports, create a pre and post wildfire
@@ -91,14 +101,18 @@ def render(
     raster_out = Path(raster_dir)
     raster_out.mkdir(parents=True, exist_ok=True)
 
+    img_out = Path(img_dir)
+    img_out.mkdir(parents=True, exist_ok=True)
+
     for code in codes:
         try:
             with console.status(f"Working on the raster for activation {code}"):
                 raster_filepath = raster_out / f"raster_{code}"
-                if not raster_filepath.with_suffix(".zarr").exists():
-                    console.print("[white]Fetching extended CEMS report")
-                    (aoi, start_date, end_date) = get_activation_info(cfg, code)
 
+                console.print("[white]Fetching extended CEMS report")
+                (product, aoi, start_date, end_date) = get_activation_info(cfg, code)
+
+                if not raster_filepath.with_suffix(".zarr").exists():
                     console.print("[white]Composing Sentinel-2 data")
                     fetch_and_store_data(
                         cfg_stac=cfg.stac,
@@ -110,6 +124,27 @@ def render(
                 else:
                     console.print(
                         f"[green]Raster data for activation {code} already exists at {raster_filepath}"
+                    )
+
+                _kind = get_kind_by_str(kind)
+                img_filepath = img_out / f"raster_{code}_{_kind.value}"
+                if regenerate_img or not img_filepath.with_suffix(".png").exists():
+                    (da_pre, da_post) = get_rasters(raster_filepath, _kind)
+                    fig = mosaic(
+                        [da_pre, da_post],
+                        [aoi.countries.capitalize(), aoi.countries.capitalize()],
+                        [
+                            f"{product.name.title()}\npre-wildfire",
+                            f"{product.name.title()}\npost-wildfire",
+                        ],
+                    )
+
+                    fig.savefig(
+                        img_filepath, dpi=200, bbox_inches="tight", pad_inches=0.1
+                    )
+                else:
+                    console.print(
+                        f"[green]Image data for activation {code} and kind {kind} already exists at {img_filepath}"
                     )
 
         except Exception as e:
@@ -124,7 +159,6 @@ def render(
 def get_activation_info(cfg, code):
     act = fetch.fetch_extended_activaton(cfg.cems.url_extended, code)
 
-    name = act["name"]
     countries = ", ".join([country["name"] for country in act["countries"]])
     start_date = act["eventTime"]
 
@@ -132,7 +166,7 @@ def get_activation_info(cfg, code):
     evaluate_product_validity(product)
 
     aoi = Aoi(name=product.name, countries=countries, extent=product.extent)
-    return aoi, start_date, product.delivery_time
+    return product, aoi, start_date, product.delivery_time
 
 
 def evaluate_product_validity(product: Product):
