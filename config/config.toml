@@ -2,44 +2,13 @@
 url = "https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/"
 url_extended = "https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/"
 
+[io]
+img_dir = "data/images"
+raster_dir = "data/raster"
+db = "data/cems.duckdb"
 
 [stac]
 url = "https://earth-search.aws.element84.com/v1"
 collection = "sentinel-2-l2a"
 chunk_size = 1024
 bands = ["red", "green", "blue", "nir", "swir16", "scl"]
-
-[db]
-path = ""
-
-[aois.almeria]
-region = "Spain"
-latlon = [37.1724, -1.9925]
-dates = ["2026-07-09", "2026-07-24"]
-time_buffer_days = 6
-max_cloud_coverage = 20.0
-edge = 50000                         # 5 km
-
-[aois.korcula]
-region = "Croatia"
-latlon = [42.9441, 16.8509]
-dates = ["2026-07-13", "2026-07-13"]
-time_buffer_days = 6
-max_cloud_coverage = 20.0
-edge = 50000                         # 5 km
-
-[aois.diois]
-region = "France"
-latlon = [44.7117, 5.3592]
-dates = ["2026-07-07", "2026-07-07"]
-time_buffer_days = 6
-max_cloud_coverage = 20.0
-edge = 50000                         # 50 km
-
-[aois.pyrenees]
-region = "France"
-latlon = [42.6663, 2.5682]
-dates = ["2026-07-05", "2026-07-07"]
-time_buffer_days = 6
-max_cloud_coverage = 20.0
-edge = 500                           # 50 km

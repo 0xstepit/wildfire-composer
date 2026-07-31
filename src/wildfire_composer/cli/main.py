@@ -18,9 +18,10 @@ from wildfire_composer.raster import Aoi, fetch_and_store_data, get_rasters
 from wildfire_composer.viz import mosaic
 
 # Create an IO file
-DEFAULT_DB = os.environ.get("CEMS_DB", "data/cems.duckdb")
-DEFAULT_IMG_OUT = os.environ.get("IMG_OUT", "data/images")
-DEFAULT_RASTER_OUT = os.environ.get("RASTER_OUT", "data/rasters")
+DEFAULT_DB = os.environ.get("CEMS_DB", "")
+DEFAULT_IMG_DIR = os.environ.get("IMG_OUT", "")
+DEFAULT_RASTER_DIR = os.environ.get("RASTER_OUT", "")
+
 DEFAULT_CONFIG = os.environ.get("CONFIG", "config/config.toml")
 
 
@@ -38,7 +39,14 @@ def refresh(
     db_path: str = typer.Option(DEFAULT_DB, "--db", help="DuckDB file path"),
     cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
 ):
+    """
+    Create or resresh a database containing all the CEMS activations.
+    """
     cfg = Config.load(cfg_path)
+
+    if db_path == "":
+        db_path = cfg.io.db
+
     with console.status("Fetching activations from CEMS database"):
         n = fetch.refresh(cfg.cems.url, db_path)
     console.print(f"[green]Stored {n} activations")
@@ -47,6 +55,7 @@ def refresh(
 @app.command("list")
 def list_cmd(
     db_path: str = typer.Option(DEFAULT_DB, "--db", help="DuckDB file path"),
+    cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
     limit: int = typer.Option(10, "--limit", help="Maximum number of returned events"),
     include_active: Annotated[
         bool,
@@ -56,7 +65,13 @@ def list_cmd(
         ),
     ] = False,
 ):
-    print(include_active)
+    """
+    List all the available Rapid Mapping CEMS activations.
+    """
+    cfg = Config.load(cfg_path)
+
+    if db_path == "":
+        db_path = cfg.io.db
 
     con = connect(db_path)
     rows = list_wildfires(con, limit, include_active)
@@ -76,10 +91,10 @@ def render(
         "false-color", "--kind", help="rgb | false-color | dnbr | all"
     ),
     img_dir: str = typer.Option(
-        DEFAULT_IMG_OUT, "--img-out", help="Output image directoriy"
+        DEFAULT_IMG_DIR, "--img-out", help="Output image directoriy"
     ),
     raster_dir: str = typer.Option(
-        DEFAULT_RASTER_OUT, "--raster-out", help="Output raster directoriy"
+        DEFAULT_RASTER_DIR, "--raster-out", help="Output raster directoriy"
     ),
     regenerate_img: Annotated[
         bool,
@@ -94,6 +109,10 @@ def render(
     rasters, and generate the raster images.
     """
     cfg = Config.load(cfg_path)
+    if img_dir == "":
+        img_dir = cfg.io.img_dir
+    if raster_dir == "":
+        raster_dir = cfg.io.raster_dir
 
     failed: dict = {}
     # Iterate over all the CEMS code to generate rasters and images.
