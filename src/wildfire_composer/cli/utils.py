@@ -10,7 +10,7 @@ def wildfire_list_to_table(rows) -> Table:
     table.add_column("Code", style="bold cyan", no_wrap=True)
     table.add_column("Name")
     table.add_column("Region")
-    table.add_column("Acrivated", no_wrap=True)
+    table.add_column("Activated", no_wrap=True)
     table.add_column("Status", no_wrap=True)
 
     for row in rows:

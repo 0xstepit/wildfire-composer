@@ -4,7 +4,7 @@ url_extended = "https://rapidmapping.emergency.copernicus.eu/backend/dashboard-a
 
 [io]
 img_dir = "data/images"
-raster_dir = "data/raster"
+raster_dir = "data/rasters"
 db = "data/cems.duckdb"
 
 [stac]

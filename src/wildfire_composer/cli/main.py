@@ -20,7 +20,6 @@ from wildfire_composer.viz import mosaic
 
 load_dotenv()
 
-# Create an IO file
 DEFAULT_DB = os.environ.get("CEMS_DB", "")
 DEFAULT_IMG_DIR = os.environ.get("IMG_OUT", "")
 DEFAULT_RASTER_DIR = os.environ.get("RASTER_OUT", "")
@@ -30,7 +29,7 @@ DEFAULT_CONFIG = os.environ.get("CONFIG", "config/config.toml")
 
 app = typer.Typer(
     name="wildfire-composer",
-    help="Genereate a wildfire composite image from the CEMS activation reports and Sentinel-2 L2A data",
+    help="Generate a wildfire composite image from the CEMS activation reports and Sentinel-2 L2A data",
     no_args_is_help=True,
 )
 
@@ -43,7 +42,7 @@ def refresh(
     cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
 ):
     """
-    Create or resresh a database containing all the CEMS activations.
+    Create or refresh a database containing all the CEMS activations.
     """
     cfg = Config.load(cfg_path)
 
@@ -63,8 +62,8 @@ def list_cmd(
     include_active: Annotated[
         bool,
         typer.Option(
-            "--include-active/--not-include-acrive",
-            help="Filter only closed or also open activations",
+            "--include-active/--not-include-active",
+            help="Include active (non-closed) activations in the list",
         ),
     ] = False,
 ):
@@ -87,28 +86,28 @@ def list_cmd(
 @app.command()
 def render(
     codes: list[str] = typer.Argument(
-        ..., help="List of one or more CEMS activation codes to render, e.g. [EMSR333]"
+        ..., help="One or more CEMS activation codes to render, e.g. EMSR333"
     ),
     cfg_path: str = typer.Option(DEFAULT_CONFIG, "--config", help="TOML configuration"),
     kind: str = typer.Option(
         "false-color", "--kind", help="rgb | false-color | dnbr | all"
     ),
     img_dir: str = typer.Option(
-        DEFAULT_IMG_DIR, "--img-out", help="Output image directoriy"
+        DEFAULT_IMG_DIR, "--img-out", help="Output image directory"
     ),
     raster_dir: str = typer.Option(
-        DEFAULT_RASTER_DIR, "--raster-out", help="Output raster directoriy"
+        DEFAULT_RASTER_DIR, "--raster-out", help="Output raster directory"
     ),
     regenerate_img: Annotated[
         bool,
         typer.Option(
             "--regenerate-img/--not-regenerate-img",
-            help="Whether or not the images must be regenerated",
+            help="Regenerate images even if they already exist",
         ),
     ] = False,
 ):
     """
-    Fetch data associated with the provided CEMS reports, create a pre and post wildfire
+    Fetch data associated with the provided CEMS reports, create pre- and post-wildfire
     rasters, and generate the raster images.
     """
     cfg = Config.load(cfg_path)
@@ -118,7 +117,7 @@ def render(
         raster_dir = cfg.io.raster_dir
 
     failed: dict = {}
-    # Iterate over all the CEMS code to generate rasters and images.
+    # Iterate over all the CEMS codes to generate rasters and images.
 
     raster_out = Path(raster_dir)
     raster_out.mkdir(parents=True, exist_ok=True)
@@ -179,7 +178,7 @@ def render(
 
 
 def get_activation_info(cfg, code):
-    act = fetch.fetch_extended_activaton(cfg.cems.url_extended, code)
+    act = fetch.fetch_extended_activation(cfg.cems.url_extended, code)
 
     countries = ", ".join([country["name"] for country in act["countries"]])
     start_date = act["eventTime"]
@@ -193,14 +192,16 @@ def get_activation_info(cfg, code):
 
 def evaluate_product_validity(product: Product):
     if product.status != ProductStatusCode.F.name:
-        raise Error(f"Product type is not {ProductStatusCode.F.value}")
+        raise Error(f"Product status is not {ProductStatusCode.F.value}")
 
 
-# NOTE: we always assume that only the first AOI is used
+# NOTE: only activations exposing a single AOI are supported
 def get_activation_aoi_product(act: dict) -> Product:
-    if len(act["aois"]) != 1:
+    n_aois = len(act["aois"])
+    if n_aois != 1:
         raise Error(
-            "Sorry but the tool does not support activations with more than 1 AOI"
+            f"Sorry, the tool currently supports only activations with exactly 1 AOI, "
+            f"this one has {n_aois}"
         )
 
     aoi = act["aois"][0]

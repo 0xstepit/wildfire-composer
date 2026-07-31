@@ -2,8 +2,8 @@ from pathlib import Path
 
 import duckdb
 
-# Query to create or replace the activations table from
-# the CEMS Rapid Mapping data API response to the list of activation.
+# Query to create or replace the activations table from the
+# CEMS Rapid Mapping API response listing the activations.
 LOAD_SQL = """
 CREATE OR REPLACE TABLE activations AS
 SELECT
@@ -31,8 +31,8 @@ WHERE (category ILIKE '%wildfire%')
 
 
 def connect(db_filepath: str) -> duckdb.DuckDBPyConnection:
-    """Returns a connect to a DuckDB instance at the specified path. The parent folders of the
-    file are created if they don't exist.
+    """Returns a connection to a DuckDB instance at the specified path. The parent folders
+    of the file are created if they don't exist.
 
     Parameters
     ----------
@@ -66,8 +66,8 @@ def list_wildfires(
         A duckDB connection to the CEMS database.
     limit : int | None
         Maximum number of entries to return.
-    only_closed: bool | None
-        Consider only closed reports in the returned list.
+    include_active : bool | None
+        Include active (non-closed) reports in the returned list.
 
     Returns
     -------

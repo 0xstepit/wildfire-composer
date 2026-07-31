@@ -49,7 +49,7 @@ def mosaic(
         ax.set_title("")
         ax.axis("off")
 
-        # Add centered text in the image. Yes, bottom place the text on top and top on the bottom...
+        # Add centered text in the image. Yes, bottom places the text on top and top on the bottom...
         add_text(ax, country, 24, "bottom")
         add_text(ax, region, 12, "top")
 
