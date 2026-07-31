@@ -1,7 +1,7 @@
 .PHONY: install kernel start-jupyter
 
 venv = $(CURDIR)/.venv
-kernel_name = geosptial-misc
+kernel_name = wildfire-composer
 
 install:
 	@uv sync
