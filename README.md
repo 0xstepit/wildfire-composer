@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="data/images/logo.png" alt="Wildfire composer logo" width="250" height="auto" />
+</div>
+
 [![CC BY 4.0][cc-by-shield]][cc-by]
 
 # Wildfire Composer
