@@ -39,6 +39,13 @@ docstring-code-line-length = 80
 [tool.jupytext]
 formats = "ipynb,py:percent"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+  "network: may reach the network on a cold cache (DuckDB extension download)",
+]
+
 [dependency-groups]
 dev = [
   "jupyterlab>=4.6.2",
@@ -46,5 +53,6 @@ dev = [
   "mdformat>=1.0.0",
   "mdformat-myst>=0.3.0",
   "pre-commit>=4.6.1",
+  "pytest>=9.0.0",
   "ruff>=0.16.0",
 ]
