@@ -18,7 +18,12 @@ The usage instructions assume you are a
 [uv](https://docs.astral.sh/uv/concepts/tools/) user; if not, please adapt them
 accordingly.
 
-The project includes a `Makefile` to simplify common commands.
+The project includes a `Makefile` to simplify common commands. To see the
+available target, run:
+
+```sh
+make help
+```
 
 ### Install
 
@@ -50,6 +55,14 @@ cp .env.example .env
 ```
 
 And populate the variables you want to customize.
+
+### Tests
+
+You can easily run unit-tests with:
+
+```sh
+make unit-tests
+```
 
 ### Notebooks
 
